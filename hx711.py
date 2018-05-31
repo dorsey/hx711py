@@ -1,7 +1,11 @@
 import RPi.GPIO as GPIO
 import time
 import numpy  # sudo apt-get python-numpy
+import sys
 
+# Python 3 compatibility hack
+if sys.version_info > (3,):
+    long = int
 
 class HX711:
 
