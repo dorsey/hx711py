@@ -24,18 +24,6 @@ class HX711:
         self.OFFSET_B = 1
         self.lastVal = long(0)
 
-        self.LSByte = [3, 0, -1]
-        self.MSByte = [0, 3, 1]
-
-        self.MSBit = [0, 8, 1]
-        self.LSBit = [7, -1, -1]
-
-        self.byte_format = 'LSB'
-        self.bit_format = 'MSB'
-
-        self.byte_range_values = self.LSByte
-        self.bit_range_values = self.MSBit
-
         self.set_gain(gain)
 
         time.sleep(1)
@@ -79,74 +67,34 @@ class HX711:
             # print("WAITING")
             pass
 
-        dataBits = [
-            self.createBoolList(), self.createBoolList(), self.createBoolList()]
-        dataBytes = [0x0] * 4
-
-        for j in range(self.byte_range_values[0], self.byte_range_values[1], self.byte_range_values[2]):
-            for i in range(self.bit_range_values[0], self.bit_range_values[1], self.bit_range_values[2]):
-                GPIO.output(self.PD_SCK, True)
-                dataBits[j][i] = GPIO.input(self.DOUT)
-                GPIO.output(self.PD_SCK, False)
-            dataBytes[j] = numpy.packbits(numpy.uint8(dataBits[j]))
+        # 24-bits, MSB first
+        dataBits = self.createBoolList(size=24)
+        for i in range(0, 24):
+            GPIO.output(self.PD_SCK, True)
+            dataBits[i] = GPIO.input(self.DOUT)
+            GPIO.output(self.PD_SCK, False)
 
         # set channel and gain factor for next reading
         for i in range(self.GAIN):
             GPIO.output(self.PD_SCK, True)
             GPIO.output(self.PD_SCK, False)
 
-        MSBIndex24Bit = 1
-        MSBIndex32Bit = 0
+        if dataBits[0] == True:
+            # this is a negative number
+            dataBits = numpy.invert(dataBits)
+            data = (sum(2**i for i, v in enumerate(reversed(dataBits)) if v) + 1) * -1
+            
+        else:
+            # this is a positive number - no 2's complement conversion required
+            data = sum(2**i for i, v in enumerate(reversed(dataBits)) if v)
 
-        if self.byte_format == 'MSB':
-            MSBIndex24Bit = 2
-            MSBIndex32Bit = 3
-        
-        dataBytes[MSBIndex32Bit] = 0x00
-        
-        if dataBytes[MSBIndex24Bit] & 0x80:
-            dataBytes[MSBIndex32Bit] = 0xff
-
-        return dataBytes
-
-
-    def get_binary_string(self):
-        binary_format = "{0:b}"
-        np_arr8 = self.read_np_arr8()
-        binary_string = ""
-        for i in range(4):
-            # binary_segment = binary_format.format(np_arr8[i])
-            binary_segment = format(np_arr8[i], '#010b')
-            binary_string += binary_segment + " "
-        return binary_string
-
-
-    def get_np_arr8_string(self):
-        np_arr8 = self.read_np_arr8()
-        np_arr8_string = "["
-        comma = ", "
-        for i in range(4):
-            if i is 3:
-                comma = ""
-            np_arr8_string += str(np_arr8[i]) + comma
-        np_arr8_string += "]"
-
-        return np_arr8_string
-
-
-    def read_np_arr8(self):
-        dataBytes = self.read()
-        np_arr8 = numpy.uint8(dataBytes)
-
-        return np_arr8
+        return data
 
 
     def read_long(self):
-        np_arr8 = self.read_np_arr8()
-        np_arr32 = np_arr8.view('uint32')
-        self.lastVal = np_arr32
+        self.lastVal = long(self.read())
 
-        return long(self.lastVal)
+        return self.lastVal
 
 
     def read_average(self, times=3):
@@ -237,19 +185,7 @@ class HX711:
 
 
     def set_reading_format(self, byte_format="LSB", bit_format="MSB"):
-
-        self.byte_format = byte_format
-        self.bit_format = bit_format
-
-        if byte_format == "LSB":
-            self.byte_range_values = self.LSByte
-        elif byte_format == "MSB":
-            self.byte_range_values = self.MSByte
-
-        if bit_format == "LSB":
-            self.bit_range_values = self.LSBit
-        elif bit_format == "MSB":
-            self.bit_range_values = self.MSBit
+        pass
 
 
     # sets offset for channel A for compatibility reasons
